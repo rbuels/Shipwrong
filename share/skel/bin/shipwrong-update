@@ -1,0 +1,119 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use Carp;
+use FindBin;
+
+use Getopt::Std;
+use Pod::Usage;
+
+use YAML qw/ LoadFile /;
+use File::Spec::Functions;
+use IPC::Cmd qw/ can_run run /;
+
+
+# check for presence of required executables
+for (qw(
+         svn
+         shipwright
+       )) {
+    can_run($_) or die "$_ executable not found in PATH, aborting.\n";
+}
+
+# check that we are in the root of the shipwright repos
+   -d 'shipwright'
+&& -d 'scripts'
+&& -d 'sources'
+    or die "must be run from root of shipwright repository\n";
+
+#use Data::Dumper;
+
+our %opt;
+getopts('v',\%opt) or pod2usage(1);
+
+my @dists = @ARGV;
+
+my $sources  = LoadFile( catfile( 'shipwright', 'source.yml' ) )
+    or die "could not load shipwright/source.yml!\n";
+
+for (@dists) { #< check that all dists exist
+    $sources->{$_}->{vendor}
+        or die "$_ not found\n";
+}
+
+
+foreach my $dist (@dists) {
+    my $svn_url = $sources->{$dist}->{vendor}
+        or die "$dist not found\n";
+    $svn_url =~ s/^svn://
+        or die "only svn sources are currently supported, $dist has source '$svn_url'\n";
+
+
+    my $tags_base = $svn_url;
+    $tags_base =~ s!/(branches|tags|trunk)/?.*$!!
+            or die "cannot figure out tags path for $dist source $svn_url\n";
+    $tags_base .= '/tags';
+
+    my ($latest_release_url, $latest_release_num) = find_latest_release($tags_base);
+    if( $latest_release_url eq $svn_url ) {
+        print "skipping update of $dist, already at latest release tag.\n";
+    } else {
+	my $l_info = $opt{v} ? '-l info' : '';
+        print "updating $dist to release $latest_release_num ...\n";
+        system("shipwright import -r fs:. $l_info --skip XML::SAX::Exception --name $dist svn:$latest_release_url");
+        $? and die "shipwright update failed, aborting\n";
+        print "done updating $dist to release $latest_release_num.\n";
+    }
+}
+
+sub find_latest_release {
+    my $tag_url = shift;
+
+    # list release tags, sort them descending by release num
+    my @release_tags =
+        sort { $b->[1] <=> $a->[1] }
+        map { m!([^/]+)/?\s*$!; #< extract the release tag
+              [ "$tag_url/$1", release_num($1) ]
+        } `svn ls $tag_url`;
+
+    die "no release tags found in $tag_url, aborting.\n"
+      unless @release_tags;
+
+    return @{$release_tags[0]};
+}
+
+sub release_num {
+    my $tag = shift;
+    $tag =~ /([\d\.]+)$/
+        or die "could not parse release tag '$tag'";
+    return $1;
+}
+
+
+__END__
+
+=head1 NAME
+
+shipwrong-update - update the given dist(s) to their latest SVN release tag
+
+=head1 SYNOPSIS
+
+  shipwrong-update [options] dist-name dist-name ...
+
+  Options:
+
+    -v   be more verbose
+
+=head1 AUTHOR
+
+Robert Buels, E<lt>rmb32@cornell.eduE<gt>
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2009 Robert Buels
+
+This program is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+=cut

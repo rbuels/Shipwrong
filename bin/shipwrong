@@ -1,0 +1,141 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use FindBin;
+use File::Spec::Functions qw( updir catfile catdir );
+use File::Copy;
+use File::Copy::Recursive;
+use File::Find;
+
+use Pod::Usage;
+use Getopt::Long;
+use File::Temp;
+use File::ShareDir;
+use File::Basename;
+use Path::Class;
+
+use IPC::Cmd qw/ can_run run /;
+
+use autodie qw( :all move copy );
+
+my $opt_debianize = 0;
+GetOptions( 'debianize' => \$opt_debianize );
+
+my $command = shift or pod2usage(1);
+{ no strict 'refs';
+  $command->();
+  exit;
+}
+
+
+sub create {
+    my $new_package_name = shift @ARGV;
+    $new_package_name or die "must provide a name for the new package\n";
+    @ARGV and pod2usage(1);
+    -e $new_package_name and die "$new_package_name already exists\n";
+
+    # find our skeleton dir
+    my $skel_dir = _share_dir('skel');
+    my $conf_dir = _share_dir('conf');
+
+    # check that we have shipwright installed
+    can_run('shipwright') or die "can't find shipwright executable in path, please install it\n";
+    if( $opt_debianize ) {
+        can_run('dh_make') or die "can't find dh_make executable in path, needed for --debianize\n";
+    }
+
+    my $tempdir = File::Temp->newdir;
+
+    my $new_repos = $new_package_name;
+
+    # use shipwright to make a new repos in the current dir
+    system 'shipwright', 'create', -r => "fs:$new_repos";
+
+    if( $opt_debianize ) {
+        my $deb_repos = $new_repos;
+        # Debianize it
+        move( $new_repos, $deb_repos );
+        system "cd $deb_repos && dh_make --single --native --copyright artistic";
+
+        # and rename the directory to a regular dir name
+        move( $deb_repos, $new_repos );
+    }
+
+    # copy the skel and confs on top of it
+    {
+        local $File::Copy::Recursive::KeepMode = 0;
+        File::Copy::Recursive::rcopy_glob( "$_/*", $new_repos ) for $skel_dir, $conf_dir;
+    }
+    # set the permissions
+    find( sub { my $f = $_; chmod ( -d $f ? 0755 : 0644 ), $f },
+          $new_repos,
+         );
+
+    # fix up the conf
+    my $conf_file = catfile( $new_repos,'shipwrong.conf' );
+    my $conf_text = slurp( $conf_file );
+    $conf_text =~ s/=packagename\n/=$new_package_name\n/g;
+    open my $c, '>', $conf_file;
+    print $c $conf_text;
+}
+
+
+sub update {
+    my $target_dir = shift @ARGV;
+    $target_dir or pod2usage(1);
+    -d $target_dir or die "dir '$target_dir' does not exist\n";
+
+    my $skel = _share_dir('skel');
+    my $conf = _share_dir('conf');
+
+    # copy the skel on top of it
+    File::Copy::Recursive::rcopy_glob( "$skel/*", $target_dir );
+    for ( glob "$conf/*" ) {
+	my $bn = basename $_;
+	next if -e "$target_dir/$bn";
+	system "install --mode=664 $conf/* $target_dir";
+	print "WARNING: you should manually edit the contents of $target_dir/$bn\n";
+    }
+}
+
+######## HELPER SUBS ########
+
+sub _share_dir {
+    my $share = eval { File::ShareDir::dist_dir('Shipwrong') }
+	|| catdir( $FindBin::RealBin, updir(), 'share' );
+    my $d = catdir( $share, @_ );
+    -d $d or die "can't find shared ".join('/',@_)." dir ";
+    return $d;
+}
+
+sub slurp {
+    local $/;
+    open my $c, +shift;
+    <$c>
+}
+
+__END__
+
+=head1 NAME
+
+shipwrong - simplified shipwright wrapper for creating and working
+with shipwright repositories
+
+=head1 SYNOPSIS
+
+  shipwrong create <packagename>
+  shipwrong update <dirname>
+
+=head1 AUTHOR
+
+Robert Buels, E<lt>rmb32@cornell.eduE<gt>
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2010 Robert Buels
+
+This program is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+=cut
