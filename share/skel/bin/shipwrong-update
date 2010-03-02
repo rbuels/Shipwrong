@@ -27,9 +27,9 @@ for (qw(
 && -d 'sources'
     or die "must be run from root of shipwright repository\n";
 
-#use Data::Dumper;
 
-our %opt;
+my @module_blacklist = qw| XML::SAX::Exception |;
+my %opt;
 getopts('v',\%opt) or pod2usage(1);
 
 my @dists = @ARGV;
@@ -42,13 +42,12 @@ for (@dists) { #< check that all dists exist
         or die "$_ not found\n";
 }
 
-
+# update each dist
 foreach my $dist (@dists) {
     my $svn_url = $sources->{$dist}->{vendor}
         or die "$dist not found\n";
     $svn_url =~ s/^svn://
         or die "only svn sources are currently supported, $dist has source '$svn_url'\n";
-
 
     my $tags_base = $svn_url;
     $tags_base =~ s!/(branches|tags|trunk)/?.*$!!
@@ -59,13 +58,24 @@ foreach my $dist (@dists) {
     if( $latest_release_url eq $svn_url ) {
         print "skipping update of $dist, already at latest release tag.\n";
     } else {
-	my $l_info = $opt{v} ? '-l info' : '';
         print "updating $dist to release $latest_release_num ...\n";
-        system("shipwright import -r fs:. $l_info --skip XML::SAX::Exception --name $dist svn:$latest_release_url");
+        system 'shipwright',
+            ( 'import',
+              '-r'     => 'fs:.',
+              '--name' => $dist,
+              ( $opt{v} ? '-l info' : () ),
+              ( map { '--skip' => $_ } @module_blacklist ),
+              "svn:$latest_release_url",
+             );
         $? and die "shipwright update failed, aborting\n";
         print "done updating $dist to release $latest_release_num.\n";
     }
 }
+
+exit;
+
+
+############ SUBS ##############
 
 sub find_latest_release {
     my $tag_url = shift;
@@ -95,7 +105,9 @@ __END__
 
 =head1 NAME
 
-shipwrong-update - update the given dist(s) to their latest SVN release tag
+shipwrong-update - update the given releases from version control to
+their latest release (as tagged).  Currently only supports SVN-based
+dists.
 
 =head1 SYNOPSIS
 
@@ -111,7 +123,7 @@ Robert Buels, E<lt>rmb32@cornell.eduE<gt>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2009 Robert Buels
+Copyright 2010 Robert Buels
 
 This program is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
