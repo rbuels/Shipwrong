@@ -1,13 +1,19 @@
 use Module::Build;
 my $build = Module::Build->new(
 
-    module_name        => 'CXGN::Build',
-    dist_name          => 'CXGN-Builder',
+    dist_name          => 'Shipwrong',
     license            => 'perl',
     create_makefile_pl => 'passthrough',
 
     # current version of our core libraries distribution
-    dist_version => '0.1',
+    dist_author   => 'Robert Buels',
+    dist_abstract => 'a simple Perl build and deployment system that wraps Shipwright',
+    dist_version  => '0.1',
+
+    meta_merge           => {
+        resources =>
+          { repository => 'http://github.com/rbuels/Shipwrong', },
+    },
 
     recursive_test_files => 1,
 
