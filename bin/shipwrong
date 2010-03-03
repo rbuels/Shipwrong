@@ -25,6 +25,7 @@ use autodie qw( :all move copy );
 {
     my $command = shift or pod2usage(1);
     no strict 'refs';
+    pod2usage(1) unless $command =~ /^(create|update)$/;
     $command->();
     exit;
 }
@@ -130,13 +131,24 @@ __END__
 
 =head1 NAME
 
-shipwrong - simplified shipwright wrapper for creating and working
-with shipwright repositories
+shipwrong - simplified wrapper for creating Shipwright repositories
 
 =head1 SYNOPSIS
 
-  shipwrong create <packagename>
+  shipwrong create [ --debianize ] <packagename>
   shipwrong update <dirname>
+
+=head1 DESCRIPTION
+
+=head2 create
+
+Create a new Shipwright repository in the current directory with the
+given name.  If --debianize is passed, add a debian/ directory and
+Debian build system to it.
+
+=head2 update
+
+Update the Shipwrong files in the given repository directory.
 
 =head1 AUTHOR
 
