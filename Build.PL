@@ -1,16 +1,16 @@
 use Module::Build;
 my $build = Module::Build->new(
 
-    dist_name     => 'Shipwrong',
-    dist_author   => 'Robert Buels',
-    dist_abstract => 'a simple Perl build and deployment system that wraps Shipwright',
-    dist_version_from => 'bin/shipwrong',
+    dist_name          => 'Shipwrong',
+    dist_author        => 'Robert Buels',
+    dist_abstract      => 'a simple Perl build and deployment system that wraps Shipwright',
+    dist_version_from  => 'bin/shipwrong',
     license            => 'perl',
     create_makefile_pl => 'passthrough',
 
-    meta_merge           => {
+    meta_merge         => {
         resources =>
-          { repository => 'http://github.com/rbuels/Shipwrong', },
+          { repository => 'http://github.com/rbuels/Shipwrong' },
     },
 
     recursive_test_files => 1,
@@ -23,13 +23,13 @@ my $build = Module::Build->new(
         'Test::More'    => 0,
     },
     requires => {
-        'autodie' => 0,
+        'autodie'               => 0,
         'File::Copy::Recursive' => 0,
-        'File::ShareDir' => 0,
-        'File::Temp' => 0,
-        'IPC::Cmd' => 0,
-        'Path::Class' => 0,
-	'Shipwright'  => 0,
+        'File::ShareDir'        => 0,
+        'File::Temp'            => 0,
+        'IPC::Cmd'              => 0,
+        'Path::Class'           => 0,
+	'Shipwright'            => 0,
     },
 );
 $build->create_build_script;
