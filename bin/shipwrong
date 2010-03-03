@@ -22,25 +22,24 @@ use IPC::Cmd qw/ can_run run /;
 
 use autodie qw( :all move copy );
 
-my $opt_debianize = 0;
-GetOptions( 'debianize' => \$opt_debianize );
-
-my $command = shift or pod2usage(1);
-{ no strict 'refs';
-  $command->();
-  exit;
+{
+    my $command = shift or pod2usage(1);
+    no strict 'refs';
+    $command->();
+    exit;
 }
 
+######################
 
 sub create {
+    my $opt_debianize = 0;
+    GetOptions( 'debianize' => \$opt_debianize );
+
     my $new_package_name = shift @ARGV;
     $new_package_name or die "must provide a name for the new package\n";
     @ARGV and pod2usage(1);
     -e $new_package_name and die "$new_package_name already exists\n";
 
-    # find our skeleton dir
-    my $skel_dir = _share_dir('skel');
-    my $conf_dir = _share_dir('conf');
 
     # check that we have shipwright installed
     can_run('shipwright') or die "can't find shipwright executable in path, please install it\n";
@@ -53,22 +52,30 @@ sub create {
     my $new_repos = $new_package_name;
 
     # use shipwright to make a new repos in the current dir
+    print 'running shipwright ... ';
     system 'shipwright', 'create', -r => "fs:$new_repos";
+    unlink catfile( $new_repos, '__default_builder_options' );
 
     if( $opt_debianize ) {
-        my $deb_repos = $new_repos;
+        my $deb_repos = "$new_repos-1.0";
+
+        print "debianizing as $new_package_name-1.0\n";
+
         # Debianize it
-        move( $new_repos, $deb_repos );
-        system "cd $deb_repos && dh_make --single --native --copyright artistic";
+        File::Copy::Recursive::dirmove( $new_repos, $deb_repos );
+        system "cd $deb_repos && yes | dh_make --single --native --copyright artistic > /dev/null";
+
+        #copy the debian skel into it
+        File::Copy::Recursive::rcopy( _share_dir('debian'), $new_repos );
 
         # and rename the directory to a regular dir name
-        move( $deb_repos, $new_repos );
+        File::Copy::Recursive::dirmove( $deb_repos, $new_repos );
     }
 
     # copy the skel and confs on top of it
     {
         local $File::Copy::Recursive::KeepMode = 0;
-        File::Copy::Recursive::rcopy_glob( "$_/*", $new_repos ) for $skel_dir, $conf_dir;
+        File::Copy::Recursive::rcopy_glob( _share_dir($_).'/*', $new_repos ) for qw( skel conf );
     }
     # set the permissions
     find( sub { my $f = $_; chmod ( -d $f ? 0755 : 0644 ), $f },
@@ -96,8 +103,9 @@ sub update {
     File::Copy::Recursive::rcopy_glob( "$skel/*", $target_dir );
     for ( glob "$conf/*" ) {
 	my $bn = basename $_;
-	next if -e "$target_dir/$bn";
-	system "install --mode=664 $conf/* $target_dir";
+	next if -e catfile($target_dir,$bn);
+        copy( $_, $target_dir );
+        chmod 0664, catfile( $target_dir, $_ );
 	print "WARNING: you should manually edit the contents of $target_dir/$bn\n";
     }
 }

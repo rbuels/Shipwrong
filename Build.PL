@@ -18,9 +18,9 @@ my $build = Module::Build->new(
     share_dir => 'share',
 
     build_requires => {
-        'File::Temp'   => 0,
-        'Test::Output' => 0,
-        'Test::More'   => 0,
+        'File::Temp'    => 0,
+        'Capture::Tiny' => 0,
+        'Test::More'    => 0,
     },
     requires => {
         'autodie' => 0,
