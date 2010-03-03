@@ -1,4 +1,4 @@
-include CXGN-Builder.conf 
+include shipwrong.conf
 
 build-done:
 	bin/shipwright-builder --verbose --skip-test --skip-man-pages --install-base build/
@@ -14,11 +14,11 @@ install: build-done
         done
 
 # each cxgn dist, updates the source to the latest release tag
-CXGN_DISTS=`cd sources; ls -d cxgn-*`
+UPDATED_DISTS=`cd sources; ls -d $(DIST_PREFIX)-*`
 VERSION_SUMMARY=`perl -MYAML=LoadFile -e '$$u=LoadFile("shipwright/source.yml"); print join ", ", map {($$v) = $$u->{$$_}->{vendor} =~ m!([\d\.]+)$$! or die; "$$_ $$v"} sort grep /^cxgn-/, keys %{$$u}; print "\n"'`
 
 update:
-	bin/cxgn-update $(CXGN_DISTS)
+	bin/shipwrong-update $(CXGN_DISTS)
 	dch --no-auto-nmu -i -b updating to $(VERSION_SUMMARY)
 	echo updated to $(VERSION_SUMMARY)
 
