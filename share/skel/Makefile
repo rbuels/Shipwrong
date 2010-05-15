@@ -15,7 +15,7 @@ install: build-done
 
 # for each prefixed dist, updates the source to the latest release tag
 UPDATE_DISTS=`cd sources; ls -d $(UPDATE_DIST_PREFIX)*`
-VERSION_SUMMARY=`perl -MYAML=LoadFile -e '$$u=LoadFile("shipwright/source.yml"); print join ", ", map {($$v) = $$u->{$$_}->{vendor} =~ m!([\d\.]+)$$! or die; "$$_ $$v"} sort grep /^$(UPDATE_DIST_PREFIX)/, keys %{$$u}; print "\n"'`
+VERSION_SUMMARY=`perl -MYAML=LoadFile -e '$$u=LoadFile("shipwright/source.yml"); print join ", ", map {($$v) = $$u->{$$_}->{vendor} =~ m!([\d\.]*\d+)\D*$$! or die; "$$_ $$v"} sort grep /^$(UPDATE_DIST_PREFIX)/, keys %{$$u}; print "\n"'`
 
 update:
 	bin/shipwrong-update $(UPDATE_DISTS)
