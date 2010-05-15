@@ -73,11 +73,12 @@ sub create {
         File::Copy::Recursive::dirmove( $deb_repos, $new_repos );
     }
 
-    # copy the skel and confs on top of it
-    {
-        local $File::Copy::Recursive::KeepMode = 0;
-        File::Copy::Recursive::rcopy_glob( _share_dir($_).'/*', $new_repos ) for qw( skel conf );
+    { # copy the skel and confs on top of it
+      File::Copy::Recursive::rcopy_glob( _share_dir('skel').'/*', $new_repos );
+      local $File::Copy::Recursive::KeepMode = 0;
+      File::Copy::Recursive::rcopy_glob( _share_dir('conf').'/*', $new_repos ) for qw( skel conf );
     }
+
     # set the permissions
     find( sub { my $f = $_; chmod ( -d $f ? 0755 : 0644 ), $f },
           $new_repos,
@@ -100,8 +101,14 @@ sub update {
     my $skel = _share_dir('skel');
     my $conf = _share_dir('conf');
 
+    print "shipwrong updating $target_dir\n";
+
+
+    #local $File::Copy::Recursive::KeepMode = 0;
     # copy the skel on top of it
     File::Copy::Recursive::rcopy_glob( "$skel/*", $target_dir );
+    File::Copy::Recursive::rcopy_glob( "$skel/bin/*", catdir($target_dir,'bin') );
+
     for ( glob "$conf/*" ) {
 	my $bn = basename $_;
 	next if -e catfile($target_dir,$bn);
