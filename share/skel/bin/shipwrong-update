@@ -4,18 +4,16 @@ use warnings;
 
 use Carp;
 use FindBin;
-
 use Getopt::Std;
 use Pod::Usage;
+use version;
 
-use YAML qw/ LoadFile /;
 use File::Spec::Functions;
 use IPC::Cmd qw/ can_run run /;
-
+use YAML qw/ LoadFile /;
 
 # check for presence of required executables
 for (qw(
-         svn
          shipwright
        )) {
     can_run($_) or die "$_ executable not found in PATH, aborting.\n";
@@ -38,37 +36,39 @@ my $sources  = LoadFile( catfile( 'shipwright', 'source.yml' ) )
     or die "could not load shipwright/source.yml!\n";
 
 for (@dists) { #< check that all dists exist
-    $sources->{$_}->{vendor}
-        or die "$_ not found\n";
 }
 
+my @dist_data = map {
+    my $dist = $_;
+    my $curr_source = $sources->{$_}->{vendor}
+        or die "$_ not found\n";
+
+    my ($updater_pkg) = grep $_->can_handle_source( $curr_source ), sw_update->plugins
+        or die "no plugin found to handle source '$curr_source'";
+
+    [ $dist, $curr_source, $updater_pkg ]
+} @dists;
+
 # update each dist
-foreach my $dist (@dists) {
-    my $svn_url = $sources->{$dist}->{vendor}
-        or die "$dist not found\n";
-    $svn_url =~ s/^svn://
-        or die "only svn sources are currently supported, $dist has source '$svn_url'\n";
+foreach (@dist_data) {
+    my ( $dist, $curr_source, $updater_pkg ) = @$_;
 
-    my $tags_base = $svn_url;
-    $tags_base =~ s!/(branches|tags|trunk)/?.*$!!
-            or die "cannot figure out tags path for $dist source $svn_url\n";
-    $tags_base .= '/tags';
+    my ($latest_release_source, $latest_release_ver) = $updater_pkg->find_latest_release($curr_source);
 
-    my ($latest_release_url, $latest_release_num) = find_latest_release($tags_base);
-    if( $latest_release_url eq $svn_url ) {
-        print "skipping update of $dist, already at latest release tag.\n";
+    if( $latest_release_source eq $curr_source ) {
+        print "skipping update of $dist, already at latest release.\n";
     } else {
-        print "updating $dist to release $latest_release_num ...\n";
+        print "updating $dist to release $latest_release_ver ...\n";
         system 'shipwright',
             ( 'import',
               '-r'     => 'fs:.',
               '--name' => $dist,
               ( $opt{v} ? '-l info' : () ),
-              ( map { '--skip' => $_ } @module_blacklist ),
-              "svn:$latest_release_url",
+              ( map { ('--skip', $_) } @module_blacklist ),
+              "$latest_release_source",
              );
         $? and die "shipwright update failed, aborting\n";
-        print "done updating $dist to release $latest_release_num.\n";
+        print "done updating $dist to release $latest_release_ver.\n";
     }
 }
 
@@ -77,27 +77,61 @@ exit;
 
 ############ SUBS ##############
 
+# updater base class
+package sw_update;
+use Module::Pluggable search_path => __PACKAGE__;
+
+sub release_version {
+    my $class = shift;
+    my $tag = shift;
+    $tag =~ /(v?[\d\.]+)$/
+        or die "could not parse release version '$tag'";
+    return version->new($1);
+}
+
+# package for updating svn tagged releases
+package sw_update::svn;
+use base 'sw_update';
+
+sub can_handle_source {
+    shift;
+    return shift =~ /^svn:/
+}
+
 sub find_latest_release {
-    my $tag_url = shift;
+    my $class      = shift;
+    my $source_url = shift;
+
+    my $tags_base = $source_url;
+    $tags_base =~ s/^svn://;
+    $tags_base =~ s!/(branches|tags|trunk)/?.*$!!
+            or die "cannot figure out tags path for source $source_url\n";
+    $tags_base .= '/tags';
 
     # list release tags, sort them descending by release num
     my @release_tags =
         sort { $b->[1] <=> $a->[1] }
-        map { m!([^/]+)/?\s*$!; #< extract the release tag
-              [ "$tag_url/$1", release_num($1) ]
-        } `svn ls $tag_url`;
+        map {
+            m!([^/]+)/?\s*$!; #< extract the release tag
+            [ "svn:$tags_base/$1", $class->release_version($1) ]
+        } `svn ls $tags_base`;
 
-    die "no release tags found in $tag_url, aborting.\n"
+    die "no release tags found in $tags_base, aborting.\n"
       unless @release_tags;
 
     return @{$release_tags[0]};
 }
 
-sub release_num {
-    my $tag = shift;
-    $tag =~ /([\d\.]+)$/
-        or die "could not parse release tag '$tag'";
-    return $1;
+# package for updating from github snapshots
+package sw_update::github_snapshot;
+use base 'sw_update';
+
+sub can_handle_source {
+    return shift =~ m|^file:http://github\.com|;
+}
+
+sub find_latest_release {
+    die 'not yet implemented';
 }
 
 

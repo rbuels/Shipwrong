@@ -28,6 +28,7 @@ my $build = Module::Build->new(
         'File::ShareDir'        => 0,
         'File::Temp'            => 0,
         'IPC::Cmd'              => 0,
+        'Module::Pluggable'     => 0,
         'Path::Class'           => 0,
 	'Shipwright'            => 0,
     },
