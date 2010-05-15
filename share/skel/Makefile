@@ -13,12 +13,12 @@ install: build-done
 	    ln -sf /usr/share/$(PACKAGE_NAME)/bin/$$bn $(DESTDIR)/usr/bin/$$bn; \
         done
 
-# each cxgn dist, updates the source to the latest release tag
-UPDATED_DISTS=`cd sources; ls -d $(DIST_PREFIX)-*`
-VERSION_SUMMARY=`perl -MYAML=LoadFile -e '$$u=LoadFile("shipwright/source.yml"); print join ", ", map {($$v) = $$u->{$$_}->{vendor} =~ m!([\d\.]+)$$! or die; "$$_ $$v"} sort grep /^cxgn-/, keys %{$$u}; print "\n"'`
+# for each prefixed dist, updates the source to the latest release tag
+UPDATE_DISTS=`cd sources; ls -d $(UPDATE_DIST_PREFIX)-*`
+VERSION_SUMMARY=`perl -MYAML=LoadFile -e '$$u=LoadFile("shipwright/source.yml"); print join ", ", map {($$v) = $$u->{$$_}->{vendor} =~ m!([\d\.]+)$$! or die; "$$_ $$v"} sort grep /^$(UPDATE_DIST_PREFIX)-/, keys %{$$u}; print "\n"'`
 
 update:
-	bin/shipwrong-update $(CXGN_DISTS)
+	bin/shipwrong-update $(UPDATE_DISTS)
 	dch --no-auto-nmu -i -b updating to $(VERSION_SUMMARY)
 	echo updated to $(VERSION_SUMMARY)
 
