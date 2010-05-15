@@ -25,7 +25,7 @@ use autodie qw( :all move copy );
 {
     my $command = shift or pod2usage(1);
     no strict 'refs';
-    pod2usage(1) unless $command =~ /^(create|update)$/;
+    pod2usage(1) unless $command =~ /^(create|update|version)$/;
     $command->();
     exit;
 }
@@ -111,6 +111,10 @@ sub update {
     }
 }
 
+sub version {
+    print "$FindBin::Script $VERSION\n";
+}
+
 ######## HELPER SUBS ########
 
 sub _share_dir {
@@ -137,6 +141,7 @@ shipwrong - simplified wrapper for creating Shipwright repositories
 
   shipwrong create [ --debianize ] <packagename>
   shipwrong update <dirname>
+  shipwrong version
 
 =head1 DESCRIPTION
 
@@ -149,6 +154,10 @@ Debian build system to it.
 =head2 update
 
 Update the Shipwrong files in the given repository directory.
+
+=head2 version
+
+Print version and exit
 
 =head1 AUTHOR
 
