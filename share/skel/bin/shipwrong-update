@@ -196,9 +196,8 @@ __END__
 
 =head1 NAME
 
-shipwrong-update - update the given releases from version control to
-their latest release (as tagged).  Currently only supports SVN-based
-dists.
+shipwrong-update - for each given dist, find the latest tagged release
+in version control and update the dist's source from it
 
 =head1 SYNOPSIS
 
