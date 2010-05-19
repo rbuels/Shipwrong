@@ -6,6 +6,7 @@ use Carp;
 use FindBin;
 use Getopt::Std;
 use Pod::Usage;
+use Hash::Merge;
 use version;
 
 use File::Spec::Functions;
@@ -55,33 +56,24 @@ my @dist_data = map {
 foreach (@dist_data) {
     my ( $dist, $curr_source, $curr_ver, $updater_pkg ) = @$_;
 
-    my ( $latest_release_ver, $fetch_latest_release_source) = $updater_pkg->find_latest_release($curr_source);
 
-    if( $latest_release_ver eq $curr_ver ) {
-        print "skipping update of $dist, stored source is already at latest version ($latest_release_ver).\n";
+    unless( $updater_pkg->needs_update( $dist ) ) {
+        print "skipping update of $dist, stored source is already at latest version.\n";
     } else {
+        my @import_args = $updater_pkg->shipwright_import_args( $dist );
 
-        my $latest_release_source = $fetch_latest_release_source->();
-        my ($source_backend) = $latest_release_source =~ /([^:]+)/;
+        print "updating $dist from ".join(' ',@import_args)."\n";
 
-        if( $latest_release_source eq $curr_source ) {
-            print "skipping update of $dist, stored source is already the latest ($latest_release_source).\n";
-        } else {
-            print "updating $dist to release $latest_release_ver ...\n";
-            print " '$latest_release_source' vs '$curr_source' \n";
-
-            system 'shipwright',
-                ( 'import',
-                  '-r'        => 'fs:.',
-                  '--name'    => $dist,
-                  ( $opt{v} ? '-l info' : () ),
-                  ($source_backend eq 'file' ? ('--version' => "$latest_release_ver") : ()),
-                  ( map { ('--skip', $_) } @module_blacklist ),
-                  "$latest_release_source",
-                 );
-            $? and die "shipwright update failed, aborting\n";
-            print "done updating $dist to release $latest_release_ver.\n";
-        }
+        system 'shipwright',
+            ( 'import',
+              '-r'        => 'fs:.',
+              '--name'    => $dist,
+              ( $opt{v} ? '-l info' : () ),
+              ( map { ('--skip', $_) } @module_blacklist ),
+              @import_args,
+             );
+        $? and die "shipwright update failed, aborting\n";
+        print "done updating $dist\n";
     }
 }
 
@@ -90,17 +82,47 @@ exit;
 
 ############ SUBS ##############
 
+sub read_sources {
+    return YAML::LoadFile( catfile( 'shipwright', 'source.yml' ) )
+        || die "could not load shipwright/source.yml!\n";
+}
+
+sub read_versions {
+    return YAML::LoadFile( catfile( 'shipwright', 'version.yml' ) )
+        || die "could not load shipwright/source.yml!\n";
+}
+
+sub write_sources {
+    my ($sources) = @_;
+    YAML::DumpFile( catfile('shipright','source.yml'), $sources );
+}
+
+sub add_to_sources {
+    write_sources( merge( read_sources(), @_ ));
+}
+
+
 # updater base class
 package sw_update;
+use File::Spec::Functions;
 use Module::Pluggable search_path => __PACKAGE__;
+use YAML ();
 
-sub release_version {
+sub version_number {
     my $class = shift;
     my $tag = shift;
     $tag =~ /(v?[\d\.]+)$/
-        or die "could not parse release version '$tag'";
+        or return;
     return version->new($1);
 }
+
+sub sources {
+    main::read_sources();
+}
+sub versions {
+    main::read_versions();
+}
+
 
 # package for updating svn tagged releases
 package sw_update::svn;
@@ -111,33 +133,78 @@ sub can_handle_source {
     return shift =~ m!^svn:.*/(branches|tags|trunk)/!;
 }
 
-sub find_latest_release {
-    my $class      = shift;
-    my $source_url = shift;
+sub shipwright_import_args {
+    my ($class, $dist) = @_;
+    return $class->_find_latest_source( $class->sources->{$dist}{vendor} );
+}
 
+sub needs_update {
+    my ($class, $dist ) = @_;
+
+    my $source = $class->sources->{$dist}{vendor}
+        or return 1;
+
+    my ($latest_source) = $class->_find_latest_source( $dist );
+    unless( $latest_source ) {
+        warn "WARNING: no tagged versions found in version control for source '$source'!\n";
+        return 1;
+    }
+
+    print( "svn: $dist currently ",
+           $class->_tag_from_url($source),
+           ", latest ",
+           $class->_tag_from_url($latest_source),
+           "\n",
+          );
+    return !( $source eq $latest_source );
+}
+
+#### helpers
+
+sub _find_latest_source {
+
+    my $class = shift;
+    my $dist  = shift;
+
+    my $source_url = $class->sources->{$dist}{vendor}
+        or die "cannot find dist '$dist' in sources";
+
+    my $tag_base = $class->_tag_base_url($source_url);
+
+    # list release tags, sort them descending by release num
+    my @release_versions =
+        sort { $b->[1] cmp $a->[1] }
+        map {
+            my ($tag) = m!([^/]+)/?\s*$!; #< extract the release tag
+            [$tag,$class->version_number( $tag )]
+        } `svn ls $tag_base`;
+
+    return unless @release_versions;
+
+    return "svn:$tag_base/$release_versions[0][0]";
+}
+sub _tag_from_url {
+    my ($class,$source_url) = @_;
+    $source_url =~ m|[^/\s]+$|
+        or die "invalid url '$source_url'";
+    return $&;
+}
+
+sub _tag_base_url {
+    my ($class,$source_url) = @_;
     my $tags_base = $source_url;
     $tags_base =~ s/^svn://;
     $tags_base =~ s!/(branches|tags|trunk)/?.*$!!
             or die "cannot figure out tags path for source $source_url\n";
     $tags_base .= '/tags';
-
-    # list release tags, sort them descending by release num
-    my @release_tags =
-        sort { $b->[0] <=> $a->[0] }
-        map {
-            my ($vertag) = m!([^/]+)/?\s*$!; #< extract the release tag
-            [ $class->release_version($vertag), sub { "svn:$tags_base/$vertag" } ]
-        } `svn ls $tags_base`;
-
-    die "no release tags found in $tags_base, aborting.\n"
-      unless @release_tags;
-
-    return @{$release_tags[0]};
+    return $tags_base;
 }
 
-# package for updating from github snapshots
-package sw_update::github_snapshot;
+
+# package for updating a git repo
+package sw_update::git;
 use base 'sw_update';
+use Carp qw/confess/;
 use File::Spec;
 use File::Temp ();
 use LWP;
@@ -145,50 +212,56 @@ use LWP::Simple ();
 use YAML ();
 
 sub can_handle_source {
-    shift;
-    return shift =~ m|^file:.*github_tag_archive|;
+    my ($class, $source) = @_;
+    return $source =~ m|^git:|;
 }
 
-my $update_tempdir;
-sub find_latest_release {
-    my $class      = shift;
-    my $source_url = shift;
+sub shipwright_import_args {
+    my ($class,$dist) = @_;
+    my $source = $class->sources->{$dist}{vendor};
+    my $release = $class->_find_latest_release( $source )
+        or confess "no releases available for '$dist'";
 
-    # file:http://github.com/solgenomics/sgn/tarball/sgn-46.0
-    my ($account,$repo,$tag) = $source_url =~ /github_tag_archive_([^_]+)_([^_]+)_([^_]+)\.tar\.gz$/
-        or die "could not parse github tag archive filename '$source_url'\n";
-    my @tags = $class->get_tag_list($account,$repo)
-        or die "no release tags found on github for $source_url (account $account, repo $repo on github), aborting.\n";
+    my ($tag,$version) = @$release;
 
-    # list release tags, sort them descending by release num
-    my ($latest_release) =
-        sort { $b->[2] <=> $a->[2] }
-        map {
-            [ $_, "http://github.com/$account/$repo/tarball/$_", $class->release_version($_) ]
-        } @tags;
-
-    return unless $latest_release;
-
-    $update_tempdir ||= File::Temp->newdir;
-    my ( $latest_tag, $latest_tarball_url, $latest_version ) = @$latest_release;
-    my $tarball_path = File::Spec->catdir( $update_tempdir, "github_tag_archive_${account}_${repo}_${latest_tag}.tar.gz" );
-
-    return ( $latest_version,
-             sub {
-                 print "   downloading $latest_tarball_url\n";
-                 LWP::UserAgent->new->get( $latest_tarball_url, ':content_file' => $tarball_path );
-                 return "file:$tarball_path";
-             });
+    return ( '--version' => $tag, $source );
 }
 
-sub get_tag_list {
-    my ($class,$account,$repo) = @_;
-    my $response = LWP::Simple::get("http://github.com/api/v2/yaml/repos/show/$account/$repo/tags")
-        or die "failed to fetch tags from github\n";
-    my $tags = YAML::Load( $response )
-        or die "failed to parse tags from github API.  github returned:\n$response";
+sub _find_latest_release {
+    my ($class,$source) = @_;
 
-    return keys %{$tags->{tags}};
+    $source =~ s/^git:// or die "cannot handle source url '$source'";
+    my ($latest_release) = $class->_sorted_releases($source)
+        or return;
+
+    return $latest_release;
+}
+
+sub _sorted_releases {
+    my ($class,$remote) = @_;
+    return
+        map $_->[0],
+        sort { $b->[1] cmp $a->[1] }
+        map  { m|refs/tags/([\w\-]+-[\d\.]+)| ? [$1,$class->version_number($1)] : () }
+        `git ls-remote $remote`;
+}
+
+sub needs_update {
+    my ($class, $dist ) = @_;
+
+    my $source = $class->sources->{$dist}{vendor};
+
+    my ($latest_version) = $class->_find_latest_release( $source );
+    unless( $latest_version ) {
+        warn "WARNING: no tagged versions found in version control for source '$source'!\n";
+        return 1;
+    }
+
+    my $current_version = $class->versions->{$dist}{vendor}
+        or return;
+
+    print "git: $dist currently $current_version, latest $latest_version\n";
+    return !( $current_version eq $latest_version );
 }
 
 
