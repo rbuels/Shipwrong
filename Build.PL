@@ -4,7 +4,7 @@ my $build = Module::Build->new(
     dist_name          => 'Shipwrong',
     dist_author        => 'Robert Buels',
     dist_abstract      => 'a simple Perl build and deployment system that wraps Shipwright',
-    dist_version_from  => 'bin/shipwrong',
+    dist_version_from  => 'bin/shipwrong-repo',
     license            => 'perl',
     create_makefile_pl => 'passthrough',
 

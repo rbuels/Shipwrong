@@ -18,7 +18,7 @@ UPDATE_DISTS=`cd sources; ls -d $(UPDATE_DIST_PREFIX)*`
 VERSION_SUMMARY=`perl -MYAML=LoadFile -e '$$vf=LoadFile("shipwright/version.yml"); print join ", ", map {"$$_ ($$vf->{$$_}{vendor})"} sort grep /^$(UPDATE_DIST_PREFIX)/, keys %{$$vf}; print "\n"'`
 
 update:
-	bin/shipwrong-update $(UPDATE_DISTS)
+	shipwrong-update $(UPDATE_DISTS)
 	dch --no-auto-nmu -i -b updated to $(VERSION_SUMMARY)
 	echo updated to $(VERSION_SUMMARY)
 

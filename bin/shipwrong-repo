@@ -103,6 +103,14 @@ sub update {
 
     print "shipwrong updating $target_dir\n";
 
+    # remove any legacy files
+    my @legacy_files = (
+        catfile($target_dir,'bin','shipwrong-update'),
+       );
+    for (@legacy_files) {
+        chmod 0755, $_;
+        unlink $_;
+    }
 
     #local $File::Copy::Recursive::KeepMode = 0;
     # copy the skel on top of it
@@ -146,9 +154,9 @@ shipwrong - simplified wrapper for creating Shipwright repositories
 
 =head1 SYNOPSIS
 
-  shipwrong create [ --debianize ] <packagename>
-  shipwrong update <dirname>
-  shipwrong version
+  shipwrong-repo create [ --debianize ] <packagename>
+  shipwrong-repo update <dirname>
+  shipwrong-repo version
 
 =head1 DESCRIPTION
 
