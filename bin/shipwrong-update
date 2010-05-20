@@ -217,12 +217,10 @@ sub can_handle_source {
 sub shipwright_import_args {
     my ($class,$dist) = @_;
     my $source = $class->sources->{$dist}{vendor};
-    my $release = $class->_find_latest_release( $source )
+    my $release_tag = $class->_find_latest_release( $source )
         or confess "no releases available for '$dist'";
 
-    my ($tag,$version) = @$release;
-
-    return ( '--version' => $tag, $source );
+    return ( '--version' => $release_tag, $source );
 }
 
 sub _find_latest_release {
@@ -250,15 +248,14 @@ sub needs_update {
     my $source = $class->sources->{$dist}{vendor};
 
     my ($latest_version) = $class->_find_latest_release( $source );
+    my $current_version = $class->versions->{$dist}{vendor};
+
     unless( $latest_version ) {
         warn "WARNING: no tagged versions found in version control for source '$source'!\n";
-        return 1;
     }
 
-    my $current_version = $class->versions->{$dist}{vendor}
-        or return;
-
-    print "git: $dist currently $current_version, latest $latest_version\n";
+    no warnings 'uninitialized';
+    print "git: $dist currently '$current_version', latest '$latest_version'\n";
     return !( $current_version eq $latest_version );
 }
 
