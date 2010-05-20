@@ -28,12 +28,13 @@ my $build = Module::Build->new(
         'File::ShareDir'        => 0,
         'File::Spec'            => 0,
         'File::Temp'            => 0,
+        'Getopt::Std'           => 0,
         'IPC::Cmd'              => 0,
-        'LWP'                   => 0,
-        'LWP::Simple'           => 0,
         'Module::Pluggable'     => 0,
         'Path::Class'           => 0,
+        'Pod::Usage'            => 0,
 	'Shipwright'            => 0,
+        'YAML'                  => 0,
     },
 );
 $build->create_build_script;

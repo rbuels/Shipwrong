@@ -6,7 +6,6 @@ use Carp;
 use FindBin;
 use Getopt::Std;
 use Pod::Usage;
-use Hash::Merge;
 use version;
 
 use File::Spec::Functions;
@@ -97,9 +96,10 @@ sub write_sources {
     YAML::DumpFile( catfile('shipright','source.yml'), $sources );
 }
 
-sub add_to_sources {
-    write_sources( merge( read_sources(), @_ ));
-}
+# use Hash::Merge;
+# sub add_to_sources {
+#     write_sources( merge( read_sources(), @_ ));
+# }
 
 
 # updater base class
@@ -207,8 +207,6 @@ use base 'sw_update';
 use Carp qw/confess/;
 use File::Spec;
 use File::Temp ();
-use LWP;
-use LWP::Simple ();
 use YAML ();
 
 sub can_handle_source {
