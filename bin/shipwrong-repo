@@ -103,15 +103,6 @@ sub update {
 
     print "shipwrong updating $target_dir\n";
 
-    # remove any legacy files
-    my @legacy_files = (
-        catfile($target_dir,'bin','shipwrong-update'),
-       );
-    for (@legacy_files) {
-        chmod 0755, $_;
-        unlink $_;
-    }
-
     #local $File::Copy::Recursive::KeepMode = 0;
     # copy the skel on top of it
     File::Copy::Recursive::rcopy_glob( "$skel/*", $target_dir );
@@ -124,6 +115,17 @@ sub update {
         chmod 0664, catfile( $target_dir, $_ );
 	print "WARNING: you should manually edit the contents of $target_dir/$bn\n";
     }
+
+    # remove any legacy files
+    my @legacy_files = (
+        catfile($target_dir,'bin','shipwrong-update'),
+       );
+    for (grep -f, @legacy_files) {
+        warn "removing $_\n";
+        chmod 0755, $_;
+        unlink $_ or die "failed to delete $_\n";
+    }
+
 }
 
 sub version {
