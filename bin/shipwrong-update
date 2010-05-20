@@ -251,7 +251,8 @@ sub needs_update {
     my $current_version = $class->versions->{$dist}{vendor};
 
     unless( $latest_version ) {
-        warn "WARNING: no tagged versions found in version control for source '$source'!\n";
+        warn "WARNING: no tagged versions found in version control for source '$source', not updating.\n";
+        return;
     }
 
     no warnings 'uninitialized';
