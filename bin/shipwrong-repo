@@ -58,19 +58,7 @@ sub create {
     unlink catfile( $new_repos, '__default_builder_options' );
 
     if( $opt_debianize ) {
-        my $deb_repos = "$new_repos-1.0";
-
-        print "debianizing as $new_package_name-1.0\n";
-
-        # Debianize it
-        File::Copy::Recursive::dirmove( $new_repos, $deb_repos );
-        system "cd $deb_repos && yes | dh_make --single --native --copyright artistic > /dev/null";
-
-        #copy the debian skel into it
-        File::Copy::Recursive::rcopy( _share_dir('debian'), $new_repos );
-
-        # and rename the directory to a regular dir name
-        File::Copy::Recursive::dirmove( $deb_repos, $new_repos );
+        debianize( $new_repos, $new_package_name );
     }
 
     { # copy the skel and confs on top of it
@@ -134,6 +122,36 @@ sub version {
 
 ######## HELPER SUBS ########
 
+sub debianize {
+    my ($new_repos,$new_package_name) = @_;
+    my $deb_repos = "$new_repos-1.0";
+
+    print "debianizing as $new_package_name-1.0\n";
+
+    # Debianize it
+    File::Copy::Recursive::dirmove( $new_repos, $deb_repos );
+    system "cd $deb_repos && yes | dh_make --single --native --copyright artistic > /dev/null";
+
+    # fix up a few things in the debianization
+    debianize_fixup( $deb_repos );
+
+    #copy the debian skel into it
+    File::Copy::Recursive::rcopy( _share_dir('debian'), $new_repos );
+
+    # and rename the directory to a regular dir name
+    File::Copy::Recursive::dirmove( $deb_repos, $new_repos );
+}
+
+sub debianize_fixup {
+    my ($repos_dir) = @_;
+
+    # comment out dh_link in the debian rules file
+    my $rules_file = catfile( $repos_dir,'debian','rules' );
+    my $rules = slurp( $rules_file );
+    $rules =~ s/\n\s+dh_link/#dh_link/;
+    spew( $rules_file, $rules );
+}
+
 sub _share_dir {
     my $share = eval { File::ShareDir::dist_dir('Shipwrong') }
 	|| catdir( $FindBin::RealBin, updir(), 'share' );
@@ -144,8 +162,12 @@ sub _share_dir {
 
 sub slurp {
     local $/;
-    open my $c, +shift;
+    open my $c, '<', +shift;
     <$c>
+}
+sub spew {
+    open my $c, '>', +shift;
+    $c->print( @_ );
 }
 
 __END__
