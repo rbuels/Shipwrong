@@ -35,5 +35,12 @@ like( $stdout, qr/^running shipwright ... created with success\ndebianizing/, 's
 is( $stderr, '', 'stderr looks ok' );
 
 ok(   -e catfile( $test_repos, $_ ), "got $_" ) for qw( shipwrong.conf Makefile debian );
+my $rules = do {
+    local $/;
+    open my $r, catfile( $test_repos, 'debian', 'rules' ) or die;
+    <$r>
+};
+like( $rules, qr/#dh_link/, 'dh_link appears to be commented out in debian rules file' );
+
 
 done_testing;
