@@ -65,8 +65,8 @@ foreach (@dist_data) {
 
         system 'shipwright',
             ( 'import',
-              '--skip-installed',
-              '--overwrite',
+              #'--skip-installed',
+              #'--overwrite',
               '-r'        => 'fs:.',
               '--name'    => $dist,
               ( $opt{v} ? '-l info' : () ),
